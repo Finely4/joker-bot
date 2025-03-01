@@ -8,7 +8,9 @@ from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = os.getenv("DISCORD_TOKEN")  # ✅ Correct
+
+print(f"TOKEN: {TOKEN}")  # Debugging step (remove this later)
 
 # Set up bot
 intents = discord.Intents.default()
@@ -61,6 +63,11 @@ async def load_extensions():
 async def on_ready():
     autosave_balances.start()
     print(f"✅ Logged in as {bot.user}")
+    try:
+        synced = await bot.tree.sync()  # Sync all slash commands
+        print(f"✅ Synced {len(synced)} slash commands")
+    except Exception as e:
+        print(f"❌ Error syncing slash commands: {e}")
 
 # ✅ Event: On shutdown (triggers when bot is stopped properly)
 @bot.event
