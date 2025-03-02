@@ -16,7 +16,6 @@ intents.message_content = True
 intents.members = True
 bot = commands.Bot(command_prefix="!", intents=intents, application_id=1344729922328985670)
 
-
 BALANCE_FILE = "balances.json"
 
 # Load balances at startup into memory
@@ -28,10 +27,10 @@ def load_balances():
     return {}
 
 # Save balances periodically & on shutdown
-def save_balances():
+async def save_balances():
     """Save balances only when necessary to reduce I/O operations."""
     if bot.balances_modified:  # Only save if something changed
-        with open(BALANCE_FILE, "w") as f:
+        async with asyncio.to_thread(open, BALANCE_FILE, "w") as f:
             json.dump(bot.balances, f, indent=4)
         bot.balances_modified = False  # Reset flag
         print("💾 Balances saved.")
@@ -43,28 +42,7 @@ bot.balances_modified = False  # Flag to track changes
 # Background task to save balances every 5 minutes
 @tasks.loop(minutes=5)
 async def autosave_balances():
-    save_balances()
-
-@bot.event
-async def on_ready():
-    autosave_balances.start()
-    print(f"✅ Logged in as {bot.user}.")
-
-    # Skip sync and let commands register automatically
-    print("Commands registered. Skipping sync for now.")
-
-    print(f"🔍 Loaded Cogs: {list(bot.cogs.keys())}")
-
-    # Debug: Check loaded cogs
-    print(f"🔍 Loaded Cogs: {list(bot.cogs.keys())}")
-
-@bot.event
-async def on_shutdown():
-    save_balances()
-    print("💾 Balances saved before shutdown.")
-
-# Ensure save even if bot is forcefully killed (CTRL+C, Railway shutdown)
-atexit.register(save_balances)
+    await save_balances()
 
 @bot.event
 async def on_ready():
@@ -73,6 +51,24 @@ async def on_ready():
 
     print(f"✅ Logged in as {bot.user}.")
     print(f"🔍 Loaded Cogs: {list(bot.cogs.keys())}")
+
+    # List all registered commands
+    print(f"Registered commands: {[command.name for command in bot.commands]}")
+
+    # Check if "crime" is in bot.commands
+    if bot.get_command("crime"):
+        print("✅ Crime command is registered!")
+    else:
+        print("❌ Crime command is NOT registered!")
+
+@bot.event
+async def on_disconnect():
+    """Ensure balances are saved when bot disconnects."""
+    await save_balances()
+    print("💾 Balances saved before shutdown.")
+
+# Ensure save even if bot is forcefully killed (CTRL+C, Railway shutdown)
+atexit.register(lambda: asyncio.run(save_balances()))
 
 # Command to reload a specific cog dynamically
 @bot.command(name="reload", hidden=True)
@@ -97,8 +93,7 @@ async def main():
                 await bot.load_extension(cog_name)
                 print(f"✅ Loaded: {cog_name}")
 
-        # Skip the sync, commands will be automatically registered
-        print("Skipping slash command sync...")
+        print([command.name for command in bot.commands])
 
         await bot.start(TOKEN)
 
