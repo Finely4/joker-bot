@@ -66,6 +66,14 @@ async def on_shutdown():
 # Ensure save even if bot is forcefully killed (CTRL+C, Railway shutdown)
 atexit.register(save_balances)
 
+@bot.event
+async def on_ready():
+    autosave_balances.start()
+    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="The Economy Crash"))
+
+    print(f"✅ Logged in as {bot.user}.")
+    print(f"🔍 Loaded Cogs: {list(bot.cogs.keys())}")
+
 # Command to reload a specific cog dynamically
 @bot.command(name="reload", hidden=True)
 @commands.is_owner()
