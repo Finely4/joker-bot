@@ -10,13 +10,12 @@ from dotenv import load_dotenv
 load_dotenv()
 TOKEN = os.getenv("DISCORD_TOKEN")  # ✅ Correct
 
-print(f"TOKEN: {TOKEN}")  # Debugging step (remove this later)
-
 # Set up bot
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
-bot = commands.Bot(command_prefix="!", intents=intents)
+bot = commands.Bot(command_prefix="!", intents=intents, application_id=1344729922328985670)
+
 
 BALANCE_FILE = "balances.json"
 
@@ -46,42 +45,53 @@ bot.balances_modified = False  # Flag to track changes
 async def autosave_balances():
     save_balances()
 
-# Load cogs dynamically
-async def load_extensions():
-    for filename in os.listdir("./cogs"):
-        if filename.endswith(".py"):
-            cog_name = f"cogs.{filename[:-3]}"
-            try:
-                print(f"🔄 Loading: {cog_name}...")
-                await bot.load_extension(cog_name)
-                print(f"✅ Loaded: {cog_name}")
-            except Exception as e:
-                print(f"❌ Failed to load {cog_name}: {e}")
-
-# Event: On bot ready
 @bot.event
 async def on_ready():
     autosave_balances.start()
-    print(f"✅ Logged in as {bot.user}")
-    try:
-        synced = await bot.tree.sync()  # Sync all slash commands
-        print(f"✅ Synced {len(synced)} slash commands")
-    except Exception as e:
-        print(f"❌ Error syncing slash commands: {e}")
+    print(f"✅ Logged in as {bot.user}.")
 
-# ✅ Event: On shutdown (triggers when bot is stopped properly)
+    # Skip sync and let commands register automatically
+    print("Commands registered. Skipping sync for now.")
+
+    print(f"🔍 Loaded Cogs: {list(bot.cogs.keys())}")
+
+    # Debug: Check loaded cogs
+    print(f"🔍 Loaded Cogs: {list(bot.cogs.keys())}")
+
 @bot.event
 async def on_shutdown():
     save_balances()
     print("💾 Balances saved before shutdown.")
 
-# ✅ Ensure save even if bot is forcefully killed (CTRL+C, Railway shutdown)
+# Ensure save even if bot is forcefully killed (CTRL+C, Railway shutdown)
 atexit.register(save_balances)
 
-# Run the bot
+# Command to reload a specific cog dynamically
+@bot.command(name="reload", hidden=True)
+@commands.is_owner()
+async def reload(ctx, cog: str):
+    """Reloads a cog dynamically."""
+    cog_name = f"cogs.{cog}"
+    try:
+        await bot.unload_extension(cog_name)
+        await bot.load_extension(cog_name)
+        await ctx.send(f"🔄 Reloaded `{cog}` successfully!")
+    except Exception as e:
+        await ctx.send(f"❌ Error reloading `{cog}`: {e}")
+
 async def main():
     async with bot:
-        await load_extensions()
+        # Load cogs first
+        for filename in os.listdir("./cogs"):
+            if filename.endswith(".py"):
+                cog_name = f"cogs.{filename[:-3]}"
+                print(f"🔄 Loading: {cog_name}...")
+                await bot.load_extension(cog_name)
+                print(f"✅ Loaded: {cog_name}")
+
+        # Skip the sync, commands will be automatically registered
+        print("Skipping slash command sync...")
+
         await bot.start(TOKEN)
 
 if __name__ == "__main__":
