@@ -3,7 +3,7 @@ import random
 import json
 from discord.ext import commands
 
-BALANCE_FILE = "user_balances.json"
+BALANCE_FILE = "balances.json"
 
 def load_balances():
     try:
@@ -26,12 +26,11 @@ class Gamble(commands.Cog):
         user_id = str(ctx.author.id)
         balances = load_balances()
 
-        # Possible choices
         valid_choices = {"h": "heads", "t": "tails", "head": "heads", "tail": "tails", "heads": "heads", "tails": "tails"}
 
         # Determine which argument is the bet amount and which is the choice
         if arg1.lower() in valid_choices:
-            choice = valid_choices[arg1.lower()]  # Convert input choice to standard format
+            choice = valid_choices[arg1.lower()]
             amount_str = arg2
         elif arg2.lower() in valid_choices:
             choice = valid_choices[arg2.lower()]
@@ -45,7 +44,6 @@ class Gamble(commands.Cog):
             await ctx.send(embed=embed)
             return
 
-        # Convert bet amount (remove commas)
         try:
             bet_amount = int(amount_str.replace(",", ""))
         except ValueError:
@@ -57,7 +55,6 @@ class Gamble(commands.Cog):
             await ctx.send(embed=embed)
             return
 
-        # Ensure the minimum bet is 1,000
         if bet_amount < 1000:
             embed = discord.Embed(
                 title="❌ Minimum Bet Not Met",
@@ -67,7 +64,6 @@ class Gamble(commands.Cog):
             await ctx.send(embed=embed)
             return
 
-        # Ensure user has enough balance
         if user_id not in balances or balances[user_id] < bet_amount:
             embed = discord.Embed(
                 title="❌ Insufficient Funds",
@@ -77,9 +73,8 @@ class Gamble(commands.Cog):
             await ctx.send(embed=embed)
             return
 
-        # Coin flip logic
         result = random.choice(["heads", "tails"])
-        win = result == choice  # Check if user won
+        win = result == choice
 
         if win:
             winnings = bet_amount * 2
@@ -97,13 +92,11 @@ class Gamble(commands.Cog):
                 color=discord.Color.red()
             )
 
-        # Save new balance
         save_balances(balances)
-
-        # Add updated balance field
         embed.add_field(name="💰 Current Balance", value=f"⏣ {balances[user_id]:,}", inline=False)
 
         await ctx.send(embed=embed)
 
+# ✅ Corrected setup function
 async def setup(bot):
     await bot.add_cog(Gamble(bot))

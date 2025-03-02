@@ -99,7 +99,7 @@ class Economy(commands.Cog):
         )
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.command(name="lb", aliases=["leaderboard"])
     async def lb(self, ctx):
         """Show the top 10 richest users."""
         sorted_balances = sorted(self.bot.balances.items(), key=lambda x: x[1], reverse=True)
@@ -112,6 +112,7 @@ class Economy(commands.Cog):
             user = await self.bot.fetch_user(int(user_id))
             embed.add_field(name=f"#{idx} {user.name}", value=f"💰 {balance} coins", inline=False)
         await ctx.send(embed=embed)
+
 
 async def setup(bot):
     await bot.add_cog(Economy(bot))
