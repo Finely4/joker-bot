@@ -1,20 +1,7 @@
-import discord
-import random
-import json
+import random  # ✅ Added missing import
 from discord.ext import commands
+import discord
 
-BALANCE_FILE = "balances.json"
-
-def load_balances():
-    try:
-        with open(BALANCE_FILE, "r") as file:
-            return json.load(file)
-    except (FileNotFoundError, json.JSONDecodeError):
-        return {}
-
-def save_balances(balances):
-    with open(BALANCE_FILE, "w") as file:
-        json.dump(balances, file, indent=4)
 
 class Gamble(commands.Cog):
     def __init__(self, bot):
@@ -33,7 +20,12 @@ class Gamble(commands.Cog):
             return
 
         user_id = str(ctx.author.id)
-        balances = load_balances()
+
+        # ✅ Ensure balances exist
+        if not hasattr(self.bot, "balances"):
+            self.bot.balances = {}
+
+        balances = self.bot.balances  # Use the in-memory balance from economy.py
 
         valid_choices = {"h": "heads", "t": "tails", "head": "heads", "tail": "tails", "heads": "heads", "tails": "tails"}
 
@@ -55,10 +47,12 @@ class Gamble(commands.Cog):
 
         try:
             bet_amount = int(amount_str.replace(",", ""))
+            if bet_amount <= 0:  # ✅ Prevent negative or zero bets
+                raise ValueError
         except ValueError:
             embed = discord.Embed(
                 title="❌ Invalid Amount",
-                description="Please enter a **valid number** for the bet amount.",
+                description="Please enter a **valid number** greater than **0** for the bet amount.",
                 color=discord.Color.red()
             )
             await ctx.send(embed=embed)
@@ -101,11 +95,11 @@ class Gamble(commands.Cog):
                 color=discord.Color.red()
             )
 
-        save_balances(balances)
+        self.bot.balances_modified = True  # ✅ Ensure balances get saved properly
         embed.add_field(name="💰 Current Balance", value=f"⏣ {balances[user_id]:,}", inline=False)
 
         await ctx.send(embed=embed)
 
-# ✅ Corrected setup function
+
 async def setup(bot):
     await bot.add_cog(Gamble(bot))

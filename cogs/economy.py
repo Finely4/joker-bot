@@ -1,11 +1,21 @@
 import discord
 from discord.ext import commands
 import random
+import json
+import os
 from discord import app_commands
 
 class Economy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.bot.balances = self.load_balances()  # Load balances on startup
+
+    def load_balances(self):
+        """Load balances from a JSON file at startup."""
+        if os.path.exists("balances.json"):
+            with open("balances.json", "r") as f:
+                return json.load(f)
+        return {}  # Return empty dict if file doesn't exist
 
     def update_balance(self, user_id, amount):
         """Modify balance in memory, mark as modified to avoid excessive saves."""
