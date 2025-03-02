@@ -21,8 +21,17 @@ class Gamble(commands.Cog):
         self.bot = bot
 
     @commands.command(name="coinflip", aliases=["cf"])
-    async def coinflip(self, ctx, arg1: str, arg2: str):
+    async def coinflip(self, ctx, arg1: str = None, arg2: str = None):
         """Gamble money by flipping a coin!"""
+        if not arg1 or not arg2:
+            embed = discord.Embed(
+                title="❌ Incorrect Usage",
+                description="To use this command, type:\n`!coinflip <heads/tails> <amount>`\nExample: `!coinflip heads 5000`",
+                color=discord.Color.red()
+            )
+            await ctx.send(embed=embed)
+            return
+
         user_id = str(ctx.author.id)
         balances = load_balances()
 

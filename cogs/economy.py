@@ -63,6 +63,11 @@ class Economy(commands.Cog):
                   "`!leaderboard` - Show the top richest users",
             inline=False
         )
+        embed.add_field(
+            name="**🎰 Gamble Commands**",
+            value="`!coinflip` - Flip a coin and bet your coins",
+            inline=False
+        )
         embed.set_footer(text="Use these commands to interact with the economy system!")
         await ctx.send(embed=embed)
 
