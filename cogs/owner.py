@@ -36,12 +36,16 @@ class Owner(commands.Cog):
             return await ctx.send("⛔ You are not an owner!")
 
         user_id = str(member.id)
-        self.bot.balances[user_id] = self.bot.balances.get(user_id, 0) + amount
+        # Ensure the balance structure exists, initialize if not
+        if user_id not in self.bot.balances or not isinstance(self.bot.balances[user_id], dict):
+            self.bot.balances[user_id] = {"cash": 0, "bank": 0}
+
+        self.bot.balances[user_id]["cash"] += amount  # Add to the cash balance
         self.bot.balances_modified = True
 
         embed = discord.Embed(
             title="Balance Updated!",
-            description=f"Added **{amount} coins** to {member.mention}.",
+            description=f"Added **{amount} coins** to {member.mention}'s cash balance.",
             color=discord.Color.green()
         )
         await ctx.send(embed=embed)
@@ -53,12 +57,16 @@ class Owner(commands.Cog):
             return await ctx.send("⛔ You are not an owner!")
 
         user_id = str(member.id)
-        self.bot.balances[user_id] = 0
+        # Ensure the balance structure exists, initialize if not
+        if user_id not in self.bot.balances or not isinstance(self.bot.balances[user_id], dict):
+            self.bot.balances[user_id] = {"cash": 0, "bank": 0}
+
+        self.bot.balances[user_id] = {"cash": 0, "bank": 0}  # Reset both cash and bank
         self.bot.balances_modified = True
 
         embed = discord.Embed(
             title="Balance Reset!",
-            description=f"{member.mention}'s balance has been reset to **0 coins**.",
+            description=f"{member.mention}'s balance has been reset to **0 coins** in both cash and bank.",
             color=discord.Color.red()
         )
         await ctx.send(embed=embed)

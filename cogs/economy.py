@@ -1,58 +1,12 @@
 import discord
 from discord.ext import commands
 import random
-import json
-import os
-from discord import app_commands
 
 class Economy(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
-        self.bot.balances = self.load_balances()  # Load balances on startup
-
-    def load_balances(self):
-        """Load balances from a JSON file at startup."""
-        if os.path.exists("balances.json"):
-            with open("balances.json", "r") as f:
-                return json.load(f)
-        return {}  # Return empty dict if file doesn't exist
-
-    def update_balance(self, user_id, amount):
-        """Modify balance in memory, mark as modified to avoid excessive saves."""
-        user_id = str(user_id)
-        self.bot.balances[user_id] = self.bot.balances.get(user_id, 0) + amount
-        self.bot.balances_modified = True  # Flag for autosave task
-
-    async def send_balance_embed(self, user, channel):
-        """Helper function to send the balance embed (for both slash & prefix commands)."""
-        user_id = str(user.id)
-        balance = self.bot.balances.get(user_id, 0)
-        formatted_balance = f"{balance:,}"
-
-        embed = discord.Embed(
-            title="💰 Balance Check",
-            description=f"💰 You currently have **{formatted_balance} coins**.",
-            color=discord.Color.gold()
-        )
-
-        await channel.send(embed=embed)
-
-    # ✅ Slash Command `/balance`
-    @app_commands.command(name="balance", description="Check your current balance.")
-    async def slash_balance(self, interaction: discord.Interaction):
-        print(f"📌 /balance triggered by {interaction.user.name} ({interaction.user.id})")  # Debugging print
-        await interaction.response.defer(thinking=True)  # Prevents auto-response issues
-        await self.send_balance_embed(interaction.user, interaction.followup)
-
-    # ✅ Prefix Command `!balance`
-    @commands.command(name="balance")
-    async def prefix_balance(self, ctx):
-        await self.send_balance_embed(ctx.author, ctx)
-
-    # ✅ Alias Command `!bal`
-    @commands.command(name="bal")
-    async def prefix_balance_alias(self, ctx):
-        await self.send_balance_embed(ctx.author, ctx)
+        if not hasattr(bot, "balances"):
+            self.bot.balances = {}  # Ensure balances dictionary exists
 
     @commands.command(name="commands")
     async def command_list(self, ctx):
@@ -63,25 +17,24 @@ class Economy(commands.Cog):
         )
         embed.add_field(
             name="**🔹 Important Commands**",
-            value="`!commands` - Show this help menu",
+            value="!commands - Show this help menu",
             inline=False
         )
         embed.add_field(
             name="**💰 Economy Commands**",
-            value="`!beg` - Try to get some coins (50% success)\n"
-                  "`!bal` - Check your current balance\n"
-                  "`!leaderboard` - Show the top richest users",
+            value="!beg - Try to get some coins (50% success)\n"
+                  "!leaderboard - Show the top richest users",
             inline=False
         )
         embed.add_field(
             name="**🎰 Gamble Commands**",
-            value="`!coinflip` - Flip a coin and bet your coins",
+            value="!coinflip - Flip a coin and bet your coins",
             inline=False
         )
         embed.set_footer(text="Use these commands to interact with the economy system!")
         await ctx.send(embed=embed)
 
-    @commands.command()
+    @commands.command(name="beg")
     @commands.cooldown(1, 150, commands.BucketType.user)
     async def beg(self, ctx):
         """Beg for coins. 50% success rate."""
@@ -94,7 +47,7 @@ class Economy(commands.Cog):
         if random.random() < 0.5:  # 50% fail chance
             response = random.choice(fail_responses)
             loss = random.randint(0, 1000) if response == fail_responses[1] else 0
-            self.update_balance(ctx.author.id, -loss)
+            self.update_balance(ctx.author.id, -loss, "cash")
 
             embed = discord.Embed(
                 title="Begging Failed!",
@@ -105,7 +58,7 @@ class Economy(commands.Cog):
             return
 
         earnings = random.randint(1, 100)
-        self.update_balance(ctx.author.id, earnings)
+        self.update_balance(ctx.author.id, earnings, "cash")
 
         embed = discord.Embed(
             title="Begging Success!",
@@ -114,20 +67,60 @@ class Economy(commands.Cog):
         )
         await ctx.send(embed=embed)
 
+    def update_balance(self, user_id, amount, account_type="cash"):
+        """Update user balance safely."""
+        user_id = str(user_id)  # Ensure user_id is a string for dict keys
+        if user_id not in self.bot.balances or not isinstance(self.bot.balances[user_id], dict):
+            self.bot.balances[user_id] = {"cash": 0, "bank": 0}  # Fix incorrect entries
+        self.bot.balances[user_id][account_type] += amount
+
     @commands.command(name="lb", aliases=["leaderboard"])
     async def lb(self, ctx):
         """Show the top 10 richest users."""
-        sorted_balances = sorted(self.bot.balances.items(), key=lambda x: x[1], reverse=True)
+        print("Balances:", self.bot.balances)  # Debugging log
+
+        if not self.bot.balances:
+            await ctx.send("❌ No balances found. Start earning coins first!")
+            return
+
+        # Filter out invalid balances
+        valid_balances = {
+            user_id: balance for user_id, balance in self.bot.balances.items()
+            if isinstance(balance, dict) and "cash" in balance and "bank" in balance
+        }
+
+        # Sort users by total balance (cash + bank)
+        sorted_balances = sorted(
+            valid_balances.items(),
+            key=lambda x: x[1].get("cash", 0) + x[1].get("bank", 0),
+            reverse=True
+        )
+
+        if not sorted_balances:
+            await ctx.send("❌ No users have any coins yet!")
+            return
+
         embed = discord.Embed(
             title="🏆 Leaderboard",
             description="Top richest users:",
             color=discord.Color.purple()
         )
+
+        medals = ["🥇", "🥈", "🥉"]  # Gold, Silver, Bronze
+        default_medal = "🎖️"  # Medal for 4th place and beyond
+
         for idx, (user_id, balance) in enumerate(sorted_balances[:10], start=1):
-            user = await self.bot.fetch_user(int(user_id))
-            embed.add_field(name=f"#{idx} {user.name}", value=f"💰 {balance} coins", inline=False)
+            try:
+                user = await self.bot.fetch_user(int(user_id))  # Convert user_id to int
+                total_balance = balance.get("cash", 0) + balance.get("bank", 0)
+                medal = medals[idx - 1] if idx <= 3 else default_medal  # Assign medals
+                embed.add_field(name=f"{medal} #{idx} {user.name}", value=f"**{total_balance:,} coins**", inline=False)
+            except Exception as e:
+                print(f"Error fetching user {user_id}: {e}")
+                continue  # Skip this user and move to the next
+
         await ctx.send(embed=embed)
 
-
+# Setup function to add this cog
 async def setup(bot):
     await bot.add_cog(Economy(bot))

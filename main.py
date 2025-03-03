@@ -1,101 +1,84 @@
 import json
 import os
 import asyncio
-import atexit  # ✅ Ensure save on force shutdown
 import discord
 from discord.ext import commands, tasks
 from dotenv import load_dotenv
+import signal
 
-# Load environment variables
 load_dotenv()
-TOKEN = os.getenv("DISCORD_TOKEN")  # ✅ Correct
+TOKEN = os.getenv("DISCORD_TOKEN")
+BALANCE_FILE = "balances.json"
 
-# Set up bot
 intents = discord.Intents.default()
 intents.message_content = True
 intents.members = True
+
 bot = commands.Bot(command_prefix="!", intents=intents, application_id=1344729922328985670)
+bot.balances = {}
+bot.balances_modified = False
 
-BALANCE_FILE = "balances.json"
-
-# Load balances at startup into memory
 def load_balances():
-    """Load balances from file into memory."""
     if os.path.exists(BALANCE_FILE):
         with open(BALANCE_FILE, "r") as f:
             return json.load(f)
     return {}
 
-# Save balances periodically & on shutdown
 async def save_balances():
-    """Save balances only when necessary to reduce I/O operations."""
-    if bot.balances_modified:  # Only save if something changed
-        async with asyncio.to_thread(open, BALANCE_FILE, "w") as f:
+    if bot.balances_modified:
+        print("💾 Saving balances...")
+        with open(BALANCE_FILE, "w") as f:  # ✅ FIXED
             json.dump(bot.balances, f, indent=4)
-        bot.balances_modified = False  # Reset flag
-        print("💾 Balances saved.")
+        bot.balances_modified = False
+        print("✅ Balances saved successfully.")
 
-# Attach balance functions to bot
-bot.balances = load_balances()
-bot.balances_modified = False  # Flag to track changes
-
-# Background task to save balances every 5 minutes
 @tasks.loop(minutes=5)
 async def autosave_balances():
     await save_balances()
 
 @bot.event
 async def on_ready():
+    bot.balances = load_balances()
     autosave_balances.start()
+    print(f"✅ Logged in as {bot.user}")
+    # Set the bot's status to "Watching: The Economy Crash"
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.watching, name="The Economy Crash"))
-
-    print(f"✅ Logged in as {bot.user}.")
-    print(f"🔍 Loaded Cogs: {list(bot.cogs.keys())}")
-
-    # List all registered commands
-    print(f"Registered commands: {[command.name for command in bot.commands]}")
-
-    # Check if "crime" is in bot.commands
-    if bot.get_command("crime"):
-        print("✅ Crime command is registered!")
-    else:
-        print("❌ Crime command is NOT registered!")
 
 @bot.event
 async def on_disconnect():
-    """Ensure balances are saved when bot disconnects."""
     await save_balances()
-    print("💾 Balances saved before shutdown.")
+    print("💾 Balances saved before disconnect.")
 
-# Ensure save even if bot is forcefully killed (CTRL+C, Railway shutdown)
-atexit.register(lambda: asyncio.run(save_balances()))
+async def shutdown_handler():
+    print("⚠️ Shutdown Detected...")
+    await save_balances()
+    autosave_balances.cancel()
+    print("✅ Balances successfully saved before shutdown.")
 
-# Command to reload a specific cog dynamically
-@bot.command(name="reload", hidden=True)
-@commands.is_owner()
-async def reload(ctx, cog: str):
-    """Reloads a cog dynamically."""
-    cog_name = f"cogs.{cog}"
-    try:
-        await bot.unload_extension(cog_name)
-        await bot.load_extension(cog_name)
-        await ctx.send(f"🔄 Reloaded `{cog}` successfully!")
-    except Exception as e:
-        await ctx.send(f"❌ Error reloading `{cog}`: {e}")
+if os.name != "nt":
+    loop = asyncio.get_event_loop()
+    loop.add_signal_handler(signal.SIGTERM, lambda: asyncio.create_task(shutdown_handler()))
+    loop.add_signal_handler(signal.SIGINT, lambda: asyncio.create_task(shutdown_handler()))
+
+@bot.command(name="save")
+async def save(ctx):
+    await save_balances()
+    await ctx.send("💾 Balances have been saved!")
 
 async def main():
-    async with bot:
-        # Load cogs first
-        for filename in os.listdir("./cogs"):
-            if filename.endswith(".py"):
-                cog_name = f"cogs.{filename[:-3]}"
-                print(f"🔄 Loading: {cog_name}...")
-                await bot.load_extension(cog_name)
-                print(f"✅ Loaded: {cog_name}")
+    # Load BalanceManager cog first (Ensure this is the correct name, as it's case-sensitive)
+    await bot.load_extension("cogs.BalanceManager")
 
-        print([command.name for command in bot.commands])
+    # Load all other cogs from the cogs folder
+    for filename in os.listdir("./cogs"):
+        if filename.endswith(".py") and filename != "BalanceManager.py":  # Exclude BalanceManager.py if already loaded
+            await bot.load_extension(f"cogs.{filename[:-3]}")
 
+    try:
+        # Start the bot with the token
         await bot.start(TOKEN)
+    except KeyboardInterrupt:
+        await shutdown_handler()
 
 if __name__ == "__main__":
     asyncio.run(main())
