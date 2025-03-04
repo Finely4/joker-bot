@@ -43,18 +43,16 @@ class CrimeButton(Button):
         outcome = random.choice(outcomes)
         amount = outcome["amount"]
 
-        # Update balance
-        if user_id not in self.bot.balances:
-            self.bot.balances[user_id] = 0
-        self.bot.balances[user_id] = max(0, self.bot.balances[user_id] + amount)
-        self.bot.balances_modified = True
+        # Update balance using BalanceManager
+        self.bot.update_balance(user_id, amount, account_type="cash")
+        new_balance = self.bot.get_balance(user_id, "cash")
 
         embed = discord.Embed(
             title="Crime Attempt!",
             description=f"{outcome['message']} {'+' if amount > 0 else '-'} `{abs(amount):,}` coins!",
             color=outcome["color"]
         )
-        embed.set_footer(text=f"Your new balance: {self.bot.balances[user_id]:,} coins")
+        embed.set_footer(text=f"Your new balance: {new_balance:,} coins")
         embed.set_author(name=self.user.display_name, icon_url=self.user.avatar.url if self.user.avatar else self.user.default_avatar.url)
         await interaction.followup.send(embed=embed)
 
